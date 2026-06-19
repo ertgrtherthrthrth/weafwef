@@ -1,7 +1,6 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
 
 local TweenFast = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TweenSmooth = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
@@ -24,7 +23,8 @@ local CurrentTheme = Themes.Dark
 
 local GlobalInput = {
 	ActiveDrag = nil,
-	ActiveSlider = nil
+	ActiveSlider = nil,
+	ActiveColor = nil
 }
 
 UserInputService.InputChanged:Connect(function(input)
@@ -35,6 +35,9 @@ UserInputService.InputChanged:Connect(function(input)
 		if GlobalInput.ActiveSlider then
 			GlobalInput.ActiveSlider(input)
 		end
+		if GlobalInput.ActiveColor then
+			GlobalInput.ActiveColor(input)
+		end
 	end
 end)
 
@@ -42,6 +45,7 @@ UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		GlobalInput.ActiveDrag = nil
 		GlobalInput.ActiveSlider = nil
+		GlobalInput.ActiveColor = nil
 	end
 end)
 
@@ -155,7 +159,7 @@ end
 
 function Library:CreateWindow(config)
 	local windowTitle = Validate(config.Title, "string", "Window")
-	local windowSize = Validate(config.Size, "UDim2", UDim2.new(0, 550, 0, 400))
+	local windowSize = Validate(config.Size, "UDim2", UDim2.new(0, 580, 0, 420))
 
 	local windowObj = {
 		Tabs = {},
@@ -276,7 +280,7 @@ function Library:CreateWindow(config)
 		local tabButton = Create("TextButton", {
 			Parent = tabContainer,
 			BackgroundColor3 = CurrentTheme.Element,
-			Size = UDim2.new(1, 0, 0, 32),
+			Size = UDim2.new(1, 0, 0, 34),
 			Font = Enum.Font.GothamSemibold,
 			Text = tabName,
 			TextColor3 = CurrentTheme.TextDim,
@@ -298,7 +302,8 @@ function Library:CreateWindow(config)
 				Padding = UDim.new(0, 8)
 			}),
 			Create("UIPadding", {
-				PaddingRight = UDim.new(0, 10)
+				PaddingRight = UDim.new(0, 10),
+				PaddingBottom = UDim.new(0, 10)
 			})
 		})
 
@@ -306,7 +311,7 @@ function Library:CreateWindow(config)
 		table.insert(tabObj.Instances, tabContent)
 
 		table.insert(tabObj.Connections, tabContent.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-			tabContent.CanvasSize = UDim2.new(0, 0, 0, tabContent.UIListLayout.AbsoluteContentSize.Y)
+			tabContent.CanvasSize = UDim2.new(0, 0, 0, tabContent.UIListLayout.AbsoluteContentSize.Y + 10)
 		end))
 
 		local function ActivateTab()
@@ -328,16 +333,41 @@ function Library:CreateWindow(config)
 		local function RegisterElement(elementObj, instance)
 			table.insert(tabObj.Elements, elementObj)
 			table.insert(tabObj.Instances, instance)
-			
 			function elementObj:SetVisible(state)
 				instance.Visible = Validate(state, "boolean", true)
 			end
-			
 			function elementObj:Destroy()
 				if instance and instance.Parent then
 					instance:Destroy()
 				end
 			end
+		end
+
+		function tabObj:CreateSection(secConfig)
+			local secName = Validate(secConfig.Name, "string", "Section")
+			
+			local sectionFrame = Create("Frame", {
+				Parent = tabContent,
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 25)
+			})
+
+			Create("TextLabel", {
+				Parent = sectionFrame,
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 5, 0, 0),
+				Size = UDim2.new(1, -10, 1, 0),
+				Font = Enum.Font.GothamBold,
+				Text = secName,
+				TextColor3 = CurrentTheme.Accent,
+				TextSize = 12,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Bottom
+			})
+
+			local sectionObj = {}
+			RegisterElement(sectionObj, sectionFrame)
+			return sectionObj
 		end
 
 		function tabObj:CreateButton(btnConfig)
@@ -371,12 +401,10 @@ function Library:CreateWindow(config)
 			table.insert(tabObj.Connections, buttonFrame.MouseButton1Click:Connect(function()
 				if tick() - lastClick < 0.2 then return end
 				lastClick = tick()
-				
 				ApplyTween(buttonFrame, { BackgroundColor3 = CurrentTheme.Accent }, TweenInfo.new(0.1))
 				task.delay(0.1, function()
 					ApplyTween(buttonFrame, { BackgroundColor3 = CurrentTheme.ElementHover }, TweenFast)
 				end)
-				
 				callback()
 			end))
 
@@ -426,7 +454,7 @@ function Library:CreateWindow(config)
 			local indicatorCircle = Create("Frame", {
 				Parent = indicatorBG,
 				BackgroundColor3 = CurrentTheme.Text,
-				Position = UDim2.new(0, state and 18 || 2, 0.5, -8),
+				Position = UDim2.new(0, state and 18 or 2, 0.5, -8),
 				Size = UDim2.new(0, 16, 0, 16),
 				Create("UICorner", { CornerRadius = UDim.new(1, 0) }),
 				Create("UIStroke", { Color = CurrentTheme.Shadow, Transparency = 0.8, Thickness = 1 })
@@ -617,17 +645,24 @@ function Library:CreateWindow(config)
 				TextSize = 12
 			})
 
-			local listContainer = Create("Frame", {
+			local listContainer = Create("ScrollingFrame", {
 				Parent = dropdownFrame,
 				BackgroundTransparency = 1,
 				Position = UDim2.new(0, 0, 0, 38),
-				Size = UDim2.new(1, 0, 1, -38)
+				Size = UDim2.new(1, 0, 1, -38),
+				CanvasSize = UDim2.new(0, 0, 0, 0),
+				ScrollBarThickness = 2,
+				ScrollBarImageColor3 = CurrentTheme.Border,
+				Create("UIListLayout", {
+					SortOrder = Enum.SortOrder.LayoutOrder
+				})
 			})
 
-			local listLayout = Create("UIListLayout", {
-				Parent = listContainer,
-				SortOrder = Enum.SortOrder.LayoutOrder
-			})
+			local listLayout = listContainer.UIListLayout
+
+			table.insert(tabObj.Connections, listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
+			end))
 
 			local function BuildOptions(newOptions)
 				for _, inst in ipairs(optionInstances) do
@@ -682,14 +717,14 @@ function Library:CreateWindow(config)
 				isOpen = not isOpen
 				ApplyTween(indicator, { Rotation = isOpen and 180 or 0 }, TweenFast)
 				
-				local targetHeight = isOpen and (38 + listLayout.AbsoluteContentSize.Y) or 38
+				local targetHeight = isOpen and math.clamp(38 + listLayout.AbsoluteContentSize.Y, 38, 160) or 38
 				ApplyTween(dropdownFrame, { Size = UDim2.new(1, 0, 0, targetHeight) }, TweenFast)
 			end))
 
 			function dropdownObj:SetOptions(newOptions)
 				BuildOptions(Validate(newOptions, "table", {}))
 				if isOpen then
-					local targetHeight = 38 + listLayout.AbsoluteContentSize.Y
+					local targetHeight = math.clamp(38 + listLayout.AbsoluteContentSize.Y, 38, 160)
 					ApplyTween(dropdownFrame, { Size = UDim2.new(1, 0, 0, targetHeight) }, TweenFast)
 				end
 			end
@@ -715,6 +750,145 @@ function Library:CreateWindow(config)
 			return dropdownObj
 		end
 
+		function tabObj:CreateInput(inpConfig)
+			local inpName = Validate(inpConfig.Name, "string", "Input")
+			local placeholder = Validate(inpConfig.Placeholder, "string", "Enter text...")
+			local clearOnFocus = Validate(inpConfig.ClearOnFocus, "boolean", true)
+			local callback = Validate(inpConfig.Callback, "function", function() end)
+
+			local inputObj = {}
+
+			local inputFrame = Create("Frame", {
+				Parent = tabContent,
+				BackgroundColor3 = CurrentTheme.Element,
+				Size = UDim2.new(1, 0, 0, 38),
+				Create("UICorner", { CornerRadius = UDim.new(0, 6) }),
+				Create("UIStroke", { Color = CurrentTheme.Border, Thickness = 1 })
+			})
+
+			Create("TextLabel", {
+				Parent = inputFrame,
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 15, 0, 0),
+				Size = UDim2.new(0.5, -15, 1, 0),
+				Font = Enum.Font.Gotham,
+				Text = inpName,
+				TextColor3 = CurrentTheme.Text,
+				TextSize = 14,
+				TextXAlignment = Enum.TextXAlignment.Left
+			})
+
+			local textBox = Create("TextBox", {
+				Parent = inputFrame,
+				BackgroundColor3 = CurrentTheme.Background,
+				Position = UDim2.new(0.5, 0, 0.5, -12),
+				Size = UDim2.new(0.5, -10, 0, 24),
+				Font = Enum.Font.Gotham,
+				Text = "",
+				PlaceholderText = placeholder,
+				PlaceholderColor3 = CurrentTheme.TextDim,
+				TextColor3 = CurrentTheme.Text,
+				TextSize = 13,
+				ClearTextOnFocus = clearOnFocus,
+				Create("UICorner", { CornerRadius = UDim.new(0, 4) }),
+				Create("UIStroke", { Color = CurrentTheme.Border, Thickness = 1 })
+			})
+
+			table.insert(tabObj.Connections, textBox.FocusLost:Connect(function()
+				callback(textBox.Text)
+			end))
+
+			function inputObj:SetValue(val)
+				textBox.Text = tostring(val)
+				callback(textBox.Text)
+			end
+
+			function inputObj:GetValue()
+				return textBox.Text
+			end
+
+			RegisterElement(inputObj, inputFrame)
+			return inputObj
+		end
+
+		function tabObj:CreateKeybind(kbConfig)
+			local kbName = Validate(kbConfig.Name, "string", "Keybind")
+			local default = Validate(kbConfig.Default, "EnumItem", Enum.KeyCode.Unknown)
+			local callback = Validate(kbConfig.Callback, "function", function() end)
+
+			local keybindObj = {}
+			local currentKey = default
+			local isBinding = false
+
+			local keybindFrame = Create("Frame", {
+				Parent = tabContent,
+				BackgroundColor3 = CurrentTheme.Element,
+				Size = UDim2.new(1, 0, 0, 38),
+				Create("UICorner", { CornerRadius = UDim.new(0, 6) }),
+				Create("UIStroke", { Color = CurrentTheme.Border, Thickness = 1 })
+			})
+
+			Create("TextLabel", {
+				Parent = keybindFrame,
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 15, 0, 0),
+				Size = UDim2.new(1, -70, 1, 0),
+				Font = Enum.Font.Gotham,
+				Text = kbName,
+				TextColor3 = CurrentTheme.Text,
+				TextSize = 14,
+				TextXAlignment = Enum.TextXAlignment.Left
+			})
+
+			local bindBtn = Create("TextButton", {
+				Parent = keybindFrame,
+				BackgroundColor3 = CurrentTheme.Background,
+				Position = UDim2.new(1, -85, 0.5, -12),
+				Size = UDim2.new(0, 75, 0, 24),
+				Font = Enum.Font.Gotham,
+				Text = currentKey == Enum.KeyCode.Unknown and "None" or currentKey.Name,
+				TextColor3 = CurrentTheme.TextDim,
+				TextSize = 13,
+				AutoButtonColor = false,
+				Create("UICorner", { CornerRadius = UDim.new(0, 4) }),
+				Create("UIStroke", { Color = CurrentTheme.Border, Thickness = 1 })
+			})
+
+			table.insert(tabObj.Connections, bindBtn.MouseButton1Click:Connect(function()
+				isBinding = true
+				bindBtn.Text = "..."
+				ApplyTween(bindBtn, { TextColor3 = CurrentTheme.Accent }, TweenFast)
+			end))
+
+			table.insert(tabObj.Connections, UserInputService.InputBegan:Connect(function(input, gpe)
+				if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
+					if input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.Backspace then
+						currentKey = Enum.KeyCode.Unknown
+						bindBtn.Text = "None"
+					else
+						currentKey = input.KeyCode
+						bindBtn.Text = currentKey.Name
+					end
+					isBinding = false
+					ApplyTween(bindBtn, { TextColor3 = CurrentTheme.TextDim }, TweenFast)
+				elseif not isBinding and input.KeyCode == currentKey and not gpe then
+					callback(currentKey)
+				end
+			end))
+
+			function keybindObj:SetValue(key)
+				currentKey = Validate(key, "EnumItem", Enum.KeyCode.Unknown)
+				bindBtn.Text = currentKey == Enum.KeyCode.Unknown and "None" or currentKey.Name
+			end
+
+			function keybindObj:GetValue()
+				return currentKey
+			end
+
+			RegisterElement(keybindObj, keybindFrame)
+			return keybindObj
+		end
+
 		return tabObj
 	end
 
@@ -732,14 +906,18 @@ function Library:CreateWindow(config)
 				if conn then conn:Disconnect() end
 			end
 		end
-		
 		local idx = table.find(Library.Windows, windowObj)
 		if idx then table.remove(Library.Windows, idx) end
-		
 		table.clear(windowObj)
 	end
 
 	return windowObj
+end
+
+function Library:Unload()
+	for _, window in ipairs(table.clone(self.Windows)) do
+		window:Destroy()
+	end
 end
 
 return Library
